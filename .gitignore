@@ -1,0 +1,13 @@
+# Ignore Visual Studio files
+.vs/
+
+# Ignore build output
+out/
+
+# Ignore specific library folders inside extern
+extern/glad33core/
+extern/glfw-3.4.bin.WIN64/
+extern/imgui-docking/
+
+# Ignore all .dat files
+*.dat
