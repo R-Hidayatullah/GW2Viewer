@@ -19,7 +19,7 @@ include_directories(extern/glad33core/include)
 include_directories(extern/imgui-docking)
 include_directories(extern/imgui-docking/backends)
 include_directories(extern/glfw-3.4.bin.WIN64/include)
-
+include_directories(extern/glm-1.0.1-light)
 
 include_directories(include)
 
@@ -35,7 +35,6 @@ set(IMGUI_SOURCES
     extern/imgui-docking/imgui_tables.cpp
     extern/imgui-docking/backends/imgui_impl_opengl3.cpp
     extern/imgui-docking/backends/imgui_impl_glfw.cpp
-
 )
 
 
