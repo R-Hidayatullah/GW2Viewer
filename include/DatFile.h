@@ -145,6 +145,52 @@ public:
 		return compressed_data;
 	}
 
+	std::vector<uint32_t> findMftData(uint32_t data_id, bool is_base_id) {
+		std::unordered_set<uint32_t> data_found = {};
+
+		// Length of the number to find
+		uint32_t divisor = 1;
+		uint32_t temp = data_id;
+		while (temp > 0)
+		{
+			divisor *= 10;
+			temp /= 10;
+		}
+
+		// Search for the number
+		for (uint32_t i = 0; i < mft_index_data.size(); i++)
+		{
+			if (is_base_id)
+			{
+				uint32_t num = mft_index_data[i].base_id;
+				while (num >= data_id) // Only check if num is large enough
+				{
+					if (num % divisor == data_id) // Match the substring
+					{
+						data_found.insert(mft_index_data[i].base_id);
+						break;
+					}
+					num /= 10; // Remove the last digit
+				}
+			}
+			else {
+				uint32_t num = mft_index_data[i].file_id;
+				while (num >= data_id) // Only check if num is large enough
+				{
+					if (num % divisor == data_id) // Match the substring
+					{
+						data_found.insert(mft_index_data[i].base_id);
+						break;
+					}
+					num /= 10; // Remove the last digit
+				}
+			}
+
+		}
+
+		return std::vector<uint32_t>(data_found.begin(), data_found.end());
+	}
+
 private:
 	// Member variables
 	std::string filename;

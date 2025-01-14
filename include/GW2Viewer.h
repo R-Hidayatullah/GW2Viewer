@@ -3,12 +3,15 @@
 #ifndef GW2_VIEWER_H
 
 #define GL_SILENCE_DEPRECATION
+#define STB_IMAGE_IMPLEMENTATION
+
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include <stdexcept>
 #include <memory>
 #include <thread>
@@ -24,6 +27,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+
 
 #endif // !GW2_VIEWER_H
 

@@ -47,4 +47,4 @@ add_executable(GW2Viewer
     "include/DatFile.h")
 
 
-target_link_libraries(GW2Viewer opengl32 glfw3)
+target_link_libraries(GW2Viewer opengl32 glfw3 )

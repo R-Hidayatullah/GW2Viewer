@@ -3,10 +3,12 @@
 
 static GLuint framebuffer = 0, texture = 0, depthbuffer = 0;
 static int fb_width = 0, fb_height = 0;
+static int find_number = 0;
+static int temp_number = 0;
 
 GLuint shaderProgram;
 GLuint VAO, VBO;
-
+static std::vector<uint32_t> found_results;
 std::chrono::high_resolution_clock::time_point lastFrameTime = std::chrono::high_resolution_clock::now();
 float frameTime = 0.0f;
 int frameCount = 0;
@@ -31,6 +33,8 @@ public:
 		initGLFW();
 		createWindow();
 		initGLAD();
+		setupShaders();
+		setupCube();
 		initImGui();
 		loadFile();  // Load the DAT file once when the application starts
 	}
@@ -60,7 +64,7 @@ private:
 	std::unique_ptr<DatFile> dat_file; // Pointer to a DatFile object
 	float status_message_timer;
 	std::string status_message;
-	std::string search_query;
+	char search_query[256];
 	int last_selected_item_decompressed;
 	int last_selected_item;
 	int selected_item;
@@ -72,8 +76,8 @@ private:
 
 	void loadFile() {
 		// Error : Load large file because didnt yet implementing  virtual list
-		std::string file_path = "Local.dat";
-		//std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
+		//std::string file_path = "Local.dat";
+		std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
 
 		try {
 			dat_file = std::make_unique<DatFile>(file_path);
@@ -257,9 +261,9 @@ private:
 
 		//Bugged because its gonna refresh per frame each time want to find
 		//// Fixed search bar at the top
-		//ImGui::Text("Search Bar:");
-		//ImGui::InputText("##SearchBar", search_query, sizeof(search_query));
-		//ImGui::Separator();
+		ImGui::Text("Search Bar:");
+		ImGui::InputInt("##SearchBar", &find_number);
+		ImGui::Separator();
 
 		ImGui::Text("MFT Data List:");
 
@@ -267,36 +271,53 @@ private:
 		ImVec2 child_size = ImVec2(0, 0); // Adjust height as needed
 		ImGui::BeginChild("MFTList", child_size, true, ImGuiWindowFlags_HorizontalScrollbar);
 
-		// Convert search query to lowercase for case-insensitive search
-		std::string query = search_query;
-		std::transform(query.begin(), query.end(), query.begin(), ::tolower);
+		if (find_number > 0)
+		{
 
-		const auto& mft_data = dat_file->getMftData();
-		size_t total_items = mft_data.size();
+			if (temp_number != find_number)
+			{
+				found_results = dat_file->findMftData(find_number, true);
+				temp_number = find_number;
+			}
 
-		// Use ImGuiListClipper for efficient rendering of large lists
-		ImGuiListClipper clipper;
-		clipper.Begin(static_cast<int>(total_items)); // Total number of items in the list
 
-		while (clipper.Step()) {
-			for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-				const auto& mft_entry = mft_data[i];
+			size_t total_items = found_results.size();
+			// Use ImGuiListClipper for efficient rendering of large lists
+			ImGuiListClipper clipper;
+			clipper.Begin(static_cast<int>(total_items)); // Total number of items in the list
 
-				// Convert the MFT entry information to lowercase for comparison
-				std::string mft_entry_str = std::to_string(i); // Adjust this to relevant fields in the MFT entry
-				std::transform(mft_entry_str.begin(), mft_entry_str.end(), mft_entry_str.begin(), ::tolower);
+			while (clipper.Step()) {
+				for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+					if (ImGui::Selectable(("MFT Entry " + std::to_string(found_results[i])).c_str(), selected_item == found_results[i])) {
+						selected_item = found_results[i];
+					}
+				}
+			}
 
-				// Check if the MFT entry matches the search query
-				if (query.empty() || mft_entry_str.find(query) != std::string::npos) {
+			clipper.End();
+		}
+
+		if (find_number == 0)
+		{
+
+			const auto& mft_data = dat_file->getMftData();
+			size_t total_items = mft_data.size();
+
+			// Use ImGuiListClipper for efficient rendering of large lists
+			ImGuiListClipper clipper;
+			clipper.Begin(static_cast<int>(total_items)); // Total number of items in the list
+
+			while (clipper.Step()) {
+				for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
 					if (ImGui::Selectable(("MFT Entry " + std::to_string(i)).c_str(), selected_item == i)) {
 						selected_item = i;
 					}
 				}
 			}
+
+			clipper.End();
+
 		}
-
-		clipper.End();
-
 		ImGui::EndChild();
 
 		ImGui::End();
@@ -470,7 +491,7 @@ private:
         out vec4 FragColor;
 
         void main() {
-            FragColor = vec4(0.8, 0.3, 0.3, 1.0); // Red color
+            FragColor = vec4(0.8, 0.5, 0.5, 1.0); // Red color
         }
     )";
 
