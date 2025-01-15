@@ -5,6 +5,14 @@ static GLuint framebuffer = 0, texture = 0, depthbuffer = 0;
 static int fb_width = 0, fb_height = 0;
 static int find_number = 0;
 static int temp_number = 0;
+// Read the decompressed data buffer once
+static std::vector<uint8_t> decompressed_data;
+static std::vector<uint8_t> compressed_data;
+
+static int image_width = 0, image_height = 0, image_channels = 0;
+static unsigned char* image_data = nullptr;
+static GLuint texture_id = 0;
+
 
 GLuint shaderProgram;
 GLuint VAO, VBO;
@@ -73,8 +81,8 @@ private:
 	double last_x, last_y;
 
 	void loadFile() {
-		std::string file_path = "Local.dat";
-		//std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
+		//std::string file_path = "Local.dat";
+		std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
 
 		try {
 			dat_file = std::make_unique<DatFile>(file_path);
@@ -325,7 +333,6 @@ private:
 			const auto& selected_entry = dat_file->getMftData()[selected_item];
 
 			// Read the compressed data buffer once
-			static std::vector<uint8_t> compressed_data;
 			if (selected_item != last_selected_item) {
 				compressed_data = dat_file->readCompressedData(selected_entry);
 				last_selected_item = selected_item;
@@ -386,7 +393,6 @@ private:
 			const auto& selected_entry = dat_file->getMftData()[selected_item];
 
 			// Read the decompressed data buffer once
-			static std::vector<uint8_t> decompressed_data;
 			if (selected_item != last_selected_item_decompressed) {
 				decompressed_data = dat_file->removeCrc32Data(selected_entry);
 				dat_file->updateUncompressedSize(selected_item, decompressed_data.size());
@@ -583,70 +589,132 @@ private:
 
 			// Display preview data
 			ImGui::Text("Preview Data:");
+			std::string file_type = "Image";
 
-			// Reserve space for FPS and other info (e.g., 90px for FPS display)
-			float textHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
-			float fpsInfoHeight = textHeightWithSpacing * 5;
 
-			// Begin child window for preview with adjusted height
-			ImGui::BeginChild("Preview Scroll", ImVec2(0, -fpsInfoHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
 
-			ImVec2 panel_size = ImGui::GetContentRegionAvail();
-			int new_width = static_cast<int>(panel_size.x);
-			int new_height = static_cast<int>(panel_size.y);
-
-			if (new_width != fb_width || new_height != fb_height) {
-				// Resize framebuffer if size changes
-				fb_width = new_width;
-				fb_height = new_height;
-
-				if (framebuffer != 0) {
-					glDeleteFramebuffers(1, &framebuffer);
-					glDeleteTextures(1, &texture);
-					glDeleteRenderbuffers(1, &depthbuffer);
-				}
-
-				createFramebuffer(framebuffer, texture, depthbuffer, fb_width, fb_height);
+			if (selected_item != last_selected_item_decompressed) {
+				// Decompress the data and update uncompressed size
+				decompressed_data = dat_file->removeCrc32Data(selected_entry);
+				dat_file->updateUncompressedSize(selected_item, decompressed_data.size());
+				last_selected_item_decompressed = selected_item;
 			}
 
-			std::string fileType = "Model3D";
-			if (fileType == "Model3D") {
-				// Calculate FPS and frame time
-				auto currentFrameTime = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<float> deltaTime = currentFrameTime - lastFrameTime;
-				lastFrameTime = currentFrameTime;
-				frameTime = deltaTime.count();
-				frameCount++;
+			if (file_type == "Image")
+			{
 
-				if (frameCount >= 60) { // Update FPS every 60 frames
-					fps = 1.0f / frameTime;
-					frameCount = 0;
+				// Free the previous image data if it exists
+				if (image_data) {
+					stbi_image_free(image_data);
+					image_data = nullptr;
 				}
 
-				// Render to framebuffer
-				renderToFramebuffer(framebuffer, fb_width, fb_height, camera_angle_x, camera_angle_y, camera_zoom);
+				// Attempt to load the decompressed data as an image
+				image_data = stbi_load_from_memory(
+					decompressed_data.data(),
+					static_cast<int>(decompressed_data.size()),
+					&image_width,
+					&image_height,
+					&image_channels,
+					0 // Keep original channels
+				);
 
-				// Display framebuffer texture in ImGui
-				ImGui::Image((ImTextureID)texture, ImVec2(fb_width, fb_height), ImVec2(0, 1), ImVec2(1, 0));
+				if (image_data) {
+					ImGui::Text("Image loaded successfully!");
+					ImGui::Text("Dimensions: %dx%d, Channels: %d", image_width, image_height, image_channels);
+				}
+				else {
+					ImGui::Text("Failed to load image. Unsupported format or corrupted data.");
+				}
 
+				// If the image is successfully loaded, display it
+				if (image_data) {
+
+					// Create an OpenGL texture for displaying the image
+					if (texture_id == 0) {
+						glGenTextures(1, &texture_id);
+					}
+
+					glBindTexture(GL_TEXTURE_2D, texture_id);
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0,
+						(image_channels == 4) ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, image_data);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+					// Display the texture in ImGui
+					ImGui::Image((ImTextureID)texture_id,
+						ImVec2(image_width, image_height));
+				}
 			}
 
-			ImGui::EndChild();
+			if (file_type == "Model3D")
+			{
 
-			// Calculate model statistics
-			int polygonCount = 12; // 6 faces * 2 triangles per face
-			int edgeCount = 24; // 12 edges * 2 vertices per edge
-			int vertexCount = 36; // 6 faces * 2 triangles * 3 vertices per triangle
+				// Reserve space for FPS and other info (e.g., 90px for FPS display)
+				float textHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
+				float fpsInfoHeight = textHeightWithSpacing * 5;
+
+				// Begin child window for preview with adjusted height
+				ImGui::BeginChild("Preview Scroll", ImVec2(0, -fpsInfoHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+				ImVec2 panel_size = ImGui::GetContentRegionAvail();
+				int new_width = static_cast<int>(panel_size.x);
+				int new_height = static_cast<int>(panel_size.y);
+
+				if (new_width != fb_width || new_height != fb_height) {
+					// Resize framebuffer if size changes
+					fb_width = new_width;
+					fb_height = new_height;
+
+					if (framebuffer != 0) {
+						glDeleteFramebuffers(1, &framebuffer);
+						glDeleteTextures(1, &texture);
+						glDeleteRenderbuffers(1, &depthbuffer);
+					}
+
+					createFramebuffer(framebuffer, texture, depthbuffer, fb_width, fb_height);
+				}
+
+				std::string fileType = "Model3D";
+				if (fileType == "Model3D") {
+					// Calculate FPS and frame time
+					auto currentFrameTime = std::chrono::high_resolution_clock::now();
+					std::chrono::duration<float> deltaTime = currentFrameTime - lastFrameTime;
+					lastFrameTime = currentFrameTime;
+					frameTime = deltaTime.count();
+					frameCount++;
+
+					if (frameCount >= 60) { // Update FPS every 60 frames
+						fps = 1.0f / frameTime;
+						frameCount = 0;
+					}
+
+					// Render to framebuffer
+					renderToFramebuffer(framebuffer, fb_width, fb_height, camera_angle_x, camera_angle_y, camera_zoom);
+
+					// Display framebuffer texture in ImGui
+					ImGui::Image((ImTextureID)texture, ImVec2(fb_width, fb_height), ImVec2(0, 1), ImVec2(1, 0));
+
+				}
+
+				ImGui::EndChild();
+
+				// Calculate model statistics
+				int polygonCount = 12; // 6 faces * 2 triangles per face
+				int edgeCount = 24; // 12 edges * 2 vertices per edge
+				int vertexCount = 36; // 6 faces * 2 triangles * 3 vertices per triangle
 
 
-			// Display FPS, frame time, and vertex count
-			ImGui::Text("FPS: %.2f", fps);
-			ImGui::Text("Frame Time: %.3f ms", frameTime * 1000.0f);
+				// Display FPS, frame time, and vertex count
+				ImGui::Text("FPS: %.2f", fps);
+				ImGui::Text("Frame Time: %.3f ms", frameTime * 1000.0f);
 
-			// Display model statistics
-			ImGui::Text("Polygon Count: %d", polygonCount);
-			ImGui::Text("Edge Count: %d", edgeCount);
-			ImGui::Text("Vertex Count: %d", vertexCount);
+				// Display model statistics
+				ImGui::Text("Polygon Count: %d", polygonCount);
+				ImGui::Text("Edge Count: %d", edgeCount);
+				ImGui::Text("Vertex Count: %d", vertexCount);
+			}
+
 		}
 	}
 
@@ -715,7 +783,7 @@ private:
 
 		if (ImGui::Button("Export Compressed Data")) {
 			try {
-				std::vector<uint8_t> compressed_data = dat_file->readCompressedData(selected_entry);
+				compressed_data = dat_file->readCompressedData(selected_entry);
 				std::string filename = "compressed_" + std::to_string(selected_item) + ".bin";
 				exportDataToFile(filename, compressed_data);
 				status_message = "Compressed data exported to " + filename;
@@ -730,7 +798,7 @@ private:
 		if (ImGui::Button("Export Decompressed Data")) {
 			try {
 
-				std::vector<uint8_t> decompressed_data = dat_file->removeCrc32Data(selected_entry);
+				decompressed_data = dat_file->removeCrc32Data(selected_entry);
 				std::string filename = "decompressed_" + std::to_string(selected_item) + ".bin";
 				exportDataToFile(filename, decompressed_data);
 				status_message = "Decompressed data exported to " + filename;

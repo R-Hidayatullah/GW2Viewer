@@ -20,13 +20,14 @@ include_directories(extern/imgui-docking)
 include_directories(extern/imgui-docking/backends)
 include_directories(extern/glfw-3.4.bin.WIN64/include)
 include_directories(extern/glm-1.0.1-light)
-
+include_directories(extern/stb-master)
 include_directories(include)
 
 link_directories(extern/glfw-3.4.bin.WIN64/lib-vc2022)
 
 # Add source files for glad and imgui
 set(GLAD_SOURCE extern/glad33core/src/glad.c)
+set(STB_SOURCE extern/stb-master/stb_vorbis.c)
 set(IMGUI_SOURCES
     extern/imgui-docking/imgui.cpp
     extern/imgui-docking/imgui_demo.cpp
@@ -43,6 +44,7 @@ add_executable(GW2Viewer
     "src/GW2Viewer.cpp"
     "include/GW2Viewer.h"
     ${GLAD_SOURCE}
+    ${STB_SOURCE}
     ${IMGUI_SOURCES}
     "include/DatFile.h" "include/DatDecompress.h")
 
