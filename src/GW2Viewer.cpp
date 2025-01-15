@@ -24,7 +24,6 @@ public:
 		clear_color(0.45f, 0.55f, 0.60f, 1.00f),
 		status_message_timer(0.0f),
 		status_message(""),
-		search_query(""),
 		last_selected_item_decompressed(-1),
 		last_selected_item(-1),
 		selected_item(-1),
@@ -64,7 +63,6 @@ private:
 	std::unique_ptr<DatFile> dat_file; // Pointer to a DatFile object
 	float status_message_timer;
 	std::string status_message;
-	char search_query[256];
 	int last_selected_item_decompressed;
 	int last_selected_item;
 	int selected_item;
@@ -75,9 +73,8 @@ private:
 	double last_x, last_y;
 
 	void loadFile() {
-		// Error : Load large file because didnt yet implementing  virtual list
-		//std::string file_path = "Local.dat";
-		std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
+		std::string file_path = "Local.dat";
+		//std::string file_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Guild Wars 2\\Gw2.dat";
 
 		try {
 			dat_file = std::make_unique<DatFile>(file_path);
@@ -391,10 +388,10 @@ private:
 			// Read the decompressed data buffer once
 			static std::vector<uint8_t> decompressed_data;
 			if (selected_item != last_selected_item_decompressed) {
-				decompressed_data = { 0,0,0,0,0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0 };
+				decompressed_data = dat_file->removeCrc32Data(selected_entry);
+				dat_file->updateUncompressedSize(selected_item, decompressed_data.size());
 				last_selected_item_decompressed = selected_item;
 			}
-
 			// Display decompressed data
 			ImGui::Text("Decompressed Data (Hex):");
 			ImGui::BeginChild("Decompressed Scroll", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
@@ -733,7 +730,7 @@ private:
 		if (ImGui::Button("Export Decompressed Data")) {
 			try {
 
-				std::vector<uint8_t> decompressed_data = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
+				std::vector<uint8_t> decompressed_data = dat_file->removeCrc32Data(selected_entry);
 				std::string filename = "decompressed_" + std::to_string(selected_item) + ".bin";
 				exportDataToFile(filename, decompressed_data);
 				status_message = "Decompressed data exported to " + filename;

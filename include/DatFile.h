@@ -13,6 +13,11 @@
 constexpr size_t DAT_MAGIC_NUMBER = 3;
 constexpr size_t MFT_MAGIC_NUMBER = 4;
 constexpr size_t MFT_ENTRY_INDEX_NUM = 1;
+constexpr size_t CHUNK_SIZE = 0x10000;
+constexpr size_t START_INDEX = CHUNK_SIZE - 4;
+constexpr size_t END_INDEX = CHUNK_SIZE;
+
+
 
 class DatFile {
 public:
@@ -146,27 +151,22 @@ public:
 	}
 
 	std::vector<uint32_t> findMftData(uint32_t data_id, bool is_base_id) {
-		std::unordered_set<uint32_t> data_found = {};
+		std::set<uint32_t> data_found; // Use std::set to maintain sorted order
 
 		// Length of the number to find
 		uint32_t divisor = 1;
 		uint32_t temp = data_id;
-		while (temp > 0)
-		{
+		while (temp > 0) {
 			divisor *= 10;
 			temp /= 10;
 		}
 
 		// Search for the number
-		for (uint32_t i = 0; i < mft_index_data.size(); i++)
-		{
-			if (is_base_id)
-			{
+		for (uint32_t i = 0; i < mft_index_data.size(); i++) {
+			if (is_base_id) {
 				uint32_t num = mft_index_data[i].base_id;
-				while (num >= data_id) // Only check if num is large enough
-				{
-					if (num % divisor == data_id) // Match the substring
-					{
+				while (num >= data_id) { // Only check if num is large enough
+					if (num % divisor == data_id) { // Match the substring
 						data_found.insert(mft_index_data[i].base_id);
 						break;
 					}
@@ -175,21 +175,76 @@ public:
 			}
 			else {
 				uint32_t num = mft_index_data[i].file_id;
-				while (num >= data_id) // Only check if num is large enough
-				{
-					if (num % divisor == data_id) // Match the substring
-					{
+				while (num >= data_id) { // Only check if num is large enough
+					if (num % divisor == data_id) { // Match the substring
 						data_found.insert(mft_index_data[i].base_id);
 						break;
 					}
 					num /= 10; // Remove the last digit
 				}
 			}
-
 		}
 
 		return std::vector<uint32_t>(data_found.begin(), data_found.end());
 	}
+
+
+	// Function to read compressed data
+	std::vector<uint8_t> removeCrc32Data(const MftData& entry) {
+		std::vector<uint8_t> compressed_data(entry.size);
+
+		// Seek to the specified offset
+		file.seekg(entry.offset);
+		if (!file) {
+			throw std::runtime_error("Failed to seek to offset: " + std::to_string(entry.offset) +
+				" in file: " + filename);
+		}
+
+
+		// Read data into the buffer
+		file.read(reinterpret_cast<char*>(compressed_data.data()), entry.size);
+
+		// Check if the read was successful
+		if (file.gcount() != entry.size) {
+			throw std::runtime_error("Failed to read the full size from file: " + filename + " in offset: " + std::to_string(entry.offset));
+		}
+
+		if (entry.size > CHUNK_SIZE)
+		{
+			uint64_t position = 0;
+			while (position + CHUNK_SIZE <= compressed_data.size())
+			{
+				compressed_data.erase(compressed_data.begin() + position + START_INDEX, compressed_data.begin() + position + END_INDEX);
+				position += CHUNK_SIZE - 4;
+			}
+
+			if (compressed_data.size() > 4)
+			{
+				compressed_data.erase(compressed_data.end() - 4, compressed_data.end());
+
+			}
+
+		}
+		else if (entry.size == CHUNK_SIZE)
+		{
+			compressed_data.erase(compressed_data.begin() + START_INDEX, compressed_data.begin() + END_INDEX);
+
+		}
+		else if (entry.size < CHUNK_SIZE) {
+			if (compressed_data.size() > 4)
+			{
+				compressed_data.erase(compressed_data.end() - 4, compressed_data.end());
+
+			}
+		}
+
+		return compressed_data;
+	}
+
+	void updateUncompressedSize(uint64_t index_data, uint32_t decompressed_size) {
+		mft_data[index_data].uncompressed_size = decompressed_size;
+	}
+
 
 private:
 	// Member variables

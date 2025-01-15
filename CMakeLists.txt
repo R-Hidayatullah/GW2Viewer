@@ -44,7 +44,7 @@ add_executable(GW2Viewer
     "include/GW2Viewer.h"
     ${GLAD_SOURCE}
     ${IMGUI_SOURCES}
-    "include/DatFile.h")
+    "include/DatFile.h" "include/DatDecompress.h")
 
 
 target_link_libraries(GW2Viewer opengl32 glfw3 )
